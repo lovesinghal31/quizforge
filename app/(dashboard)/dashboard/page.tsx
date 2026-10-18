@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { getSession } from '@/lib/auth-server';
-import prisma from '@/lib/prisma';
+import { getDashboardData } from '@/lib/quiz-service';
+import { getDifficultyVariant } from '@/components/quiz-card';
 
 import {
   Card,
@@ -9,10 +11,11 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import {
   PlusCircleIcon,
+  CompassIcon,
   BookOpenIcon,
   LayersIcon,
   BarChart3Icon,
@@ -20,73 +23,17 @@ import {
   GlobeIcon,
   ClockIcon,
   ArrowRightIcon,
+  HelpCircleIcon,
+  SparklesIcon,
 } from 'lucide-react';
-import Link from 'next/link';
 
 export const metadata = {
   title: 'Dashboard — QuizForge',
   description:
-    'Your QuizForge dashboard. Create quizzes, track performance, and explore.',
+    'Your QuizForge dashboard. Explore quizzes, track performance, and test your knowledge.',
 };
 
 export const instant = false;
-
-async function getDashboardStats(userId: string) {
-  try {
-    const [quizzesCreated, publishedQuizzes, attemptsCompleted, averageScore] =
-      await Promise.all([
-        prisma.quiz.count({ where: { creatorId: userId } }),
-        prisma.quiz.count({
-          where: { creatorId: userId, isPublished: true },
-        }),
-        prisma.quizAttempt.count({
-          where: { userId, status: 'COMPLETED' },
-        }),
-        prisma.quizAttempt
-          .aggregate({
-            where: { userId, status: 'COMPLETED' },
-            _avg: { score: true },
-          })
-          .then((r) => r._avg.score),
-      ]);
-
-    return { quizzesCreated, publishedQuizzes, attemptsCompleted, averageScore };
-  } catch {
-    // Return safe defaults on database error
-    return {
-      quizzesCreated: 0,
-      publishedQuizzes: 0,
-      attemptsCompleted: 0,
-      averageScore: null,
-    };
-  }
-}
-
-async function getRecentActivity(userId: string) {
-  try {
-    const attempts = await prisma.quizAttempt.findMany({
-      where: { userId },
-      orderBy: { startedAt: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        status: true,
-        score: true,
-        totalQuestions: true,
-        startedAt: true,
-        completedAt: true,
-        quiz: {
-          select: {
-            title: true,
-          },
-        },
-      },
-    });
-    return attempts;
-  } catch {
-    return [];
-  }
-}
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -95,97 +42,209 @@ export default async function DashboardPage() {
   }
 
   const { user } = session;
-  const [stats, recentActivity] = await Promise.all([
-    getDashboardStats(user.id),
-    getRecentActivity(user.id),
-  ]);
+  const { stats, recentlyPublished, recentAttempts } = await getDashboardData(
+    user.id
+  );
 
   const firstName = user.name.split(' ')[0];
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Welcome section */}
-      <section className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Welcome back, {firstName}
-        </h1>
-        <p className="mt-1.5 text-muted-foreground">
-          Create engaging quizzes, challenge yourself, and track your progress
-          with QuizForge.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Button size="lg" disabled>
-            <PlusCircleIcon data-icon="inline-start" />
-            Create a quiz
-          </Button>
-          <Button variant="outline" size="lg" disabled>
-            <BookOpenIcon data-icon="inline-start" />
-            Browse quizzes
-          </Button>
+      {/* Welcome Hero section */}
+      <section className="mb-8 rounded-2xl border bg-gradient-to-r from-card via-card to-muted/30 p-6 sm:p-8 shadow-xs">
+        <div className="max-w-3xl">
+          <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-background/80 px-3 py-0.5 text-xs font-medium text-muted-foreground shadow-xs">
+            <SparklesIcon className="size-3 text-primary" />
+            <span>Learning Dashboard</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
+            Welcome back, {firstName}
+          </h1>
+          <p className="mt-2 text-sm sm:text-base text-muted-foreground leading-relaxed">
+            Discover verified quizzes across computer science and web development,
+            track your test performance, and challenge your technical knowledge.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/quizzes">
+              <Button size="lg" className="h-10 px-5 gap-2">
+                <CompassIcon data-icon="inline-start" />
+                <span>Explore Quizzes</span>
+              </Button>
+            </Link>
+            <Button variant="outline" size="lg" className="h-10 px-5 gap-2" disabled>
+              <PlusCircleIcon data-icon="inline-start" />
+              <span>Create a quiz</span>
+            </Button>
+          </div>
         </div>
       </section>
 
-      <Separator className="mb-8" />
-
-      {/* Statistics cards */}
-      <section className="mb-8">
-        <h2 className="mb-4 text-lg font-medium">Your statistics</h2>
+      {/* Summary Statistics cards */}
+      <section className="mb-10">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold tracking-tight">Overview &amp; Metrics</h2>
+          <span className="text-xs text-muted-foreground">Updated in real time</span>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Available Quizzes"
+            value={stats.totalPublishedQuizzes}
+            icon={<GlobeIcon className="text-primary" />}
+            description="Published quizzes ready to take"
+          />
           <StatCard
             title="Quizzes Created"
             value={stats.quizzesCreated}
             icon={<LayersIcon className="text-primary" />}
-            description="Total quizzes you've authored"
+            description="Authored by your account"
           />
           <StatCard
             title="Attempts Completed"
             value={stats.attemptsCompleted}
             icon={<TrophyIcon className="text-primary" />}
-            description="Quizzes you've finished"
+            description="Tests you've finished"
           />
           <StatCard
             title="Average Score"
-            value={
-              stats.averageScore !== null
-                ? `${Math.round(stats.averageScore)}%`
-                : '—'
-            }
+            value={stats.averageScore !== null ? `${stats.averageScore}%` : '—'}
             icon={<BarChart3Icon className="text-primary" />}
             description={
               stats.averageScore !== null
                 ? 'Across completed attempts'
-                : 'Take a quiz to see your score'
+                : 'Take a quiz to calculate'
             }
-          />
-          <StatCard
-            title="Published Quizzes"
-            value={stats.publishedQuizzes}
-            icon={<GlobeIcon className="text-primary" />}
-            description="Quizzes available to others"
           />
         </div>
       </section>
 
-      {/* Recent activity & quick actions */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Recent activity */}
-        <Card className="lg:col-span-2">
+      {/* Main Grid: Recently Published Quizzes & Quick Actions */}
+      <div className="grid gap-8 lg:grid-cols-3 mb-10">
+        {/* Recently Published Quizzes (Discovery Recommendations) */}
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Recently Published Quizzes</h2>
+              <p className="text-xs text-muted-foreground">New challenges published on QuizForge</p>
+            </div>
+            <Link href="/quizzes">
+              <Button variant="ghost" size="sm" className="gap-1 text-primary">
+                <span>View all</span>
+                <ArrowRightIcon className="size-3.5" />
+              </Button>
+            </Link>
+          </div>
+
+          {recentlyPublished.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {recentlyPublished.map((quiz) => {
+                const diff = getDifficultyVariant(quiz.difficulty);
+                const minutes = Math.round(quiz.timeLimitSeconds / 60);
+
+                return (
+                  <Link
+                    key={quiz.id}
+                    href={`/quizzes/${quiz.id}`}
+                    className="group flex flex-col justify-between rounded-xl border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-sm hover:border-primary/50"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <Badge variant="outline" className="text-[11px] font-normal">
+                          {quiz.category}
+                        </Badge>
+                        <Badge variant={diff.variant} className={diff.badgeClass}>
+                          {diff.label}
+                        </Badge>
+                      </div>
+                      <h3 className="text-sm font-semibold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                        {quiz.title}
+                      </h3>
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        {quiz.description || 'No description provided.'}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <HelpCircleIcon className="size-3 text-primary" />
+                        {quiz._count.questions} questions
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <ClockIcon className="size-3 text-primary" />
+                        {minutes} mins
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-8 text-center bg-card/40">
+              <BookOpenIcon className="size-8 text-muted-foreground mb-2" />
+              <p className="text-sm font-medium">No published quizzes yet</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Published quizzes will appear here for immediate discovery.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Actions Card */}
+        <div className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Quick Actions</h2>
+            <p className="text-xs text-muted-foreground">Jump directly to your workspace</p>
+          </div>
+
+          <Card>
+            <CardContent className="p-3 flex flex-col gap-2">
+              <QuickAction
+                title="Explore quizzes"
+                description="Browse all published tests"
+                icon={<CompassIcon />}
+                href="/quizzes"
+              />
+              <QuickAction
+                title="My quizzes"
+                description="View your authored quizzes"
+                icon={<BookOpenIcon />}
+                href="/dashboard/my-quizzes"
+              />
+              <QuickAction
+                title="Create a quiz"
+                description="Build a new assessment (Day 5)"
+                icon={<PlusCircleIcon />}
+                disabled
+              />
+              <QuickAction
+                title="Quiz history"
+                description="Review past attempt logs (Day 4)"
+                icon={<ClockIcon />}
+                disabled
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* User's Recent Attempts Activity */}
+      <section>
+        <Card>
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
-            <CardDescription>
-              Your latest quiz attempts and progress.
+            <CardTitle className="text-base font-semibold">Your Recent Attempts</CardTitle>
+            <CardDescription className="text-xs">
+              History of quizzes taken from your account.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {recentActivity.length > 0 ? (
+            {recentAttempts.length > 0 ? (
               <div className="flex flex-col gap-3">
-                {recentActivity.map((attempt) => (
+                {recentAttempts.map((attempt) => (
                   <div
                     key={attempt.id}
                     className="flex items-center justify-between rounded-xl border p-3"
                   >
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-medium text-foreground">
                         {attempt.quiz.title}
                       </span>
                       <span className="text-xs text-muted-foreground">
@@ -200,10 +259,10 @@ export default async function DashboardPage() {
                         )}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div>
                       {attempt.status === 'COMPLETED' ? (
-                        <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                          {attempt.score}/{attempt.totalQuestions}
+                        <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                          {attempt.score}/{attempt.totalQuestions} ({Math.round((attempt.score / attempt.totalQuestions) * 100)}%)
                         </span>
                       ) : (
                         <span className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
@@ -219,54 +278,23 @@ export default async function DashboardPage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="mb-3 rounded-full bg-muted p-3">
-                  <BookOpenIcon className="size-6 text-muted-foreground" />
+                  <TrophyIcon className="size-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm font-medium">No quiz activity yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Your quiz attempts will appear here once you take your first
-                  quiz.
+                <p className="mt-1 text-xs text-muted-foreground max-w-sm">
+                  Your score history and attempt breakdowns will appear here once you
+                  take your first quiz.
                 </p>
+                <Link href="/quizzes" className="mt-4">
+                  <Button variant="outline" size="sm">
+                    Browse available quizzes
+                  </Button>
+                </Link>
               </div>
             )}
           </CardContent>
         </Card>
-
-        {/* Quick actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick actions</CardTitle>
-            <CardDescription>Jump right into what you need.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-2">
-              <QuickAction
-                title="Create a quiz"
-                description="Build a new quiz from scratch"
-                icon={<PlusCircleIcon />}
-                disabled
-              />
-              <QuickAction
-                title="Browse quizzes"
-                description="Discover quizzes to take"
-                icon={<BookOpenIcon />}
-                disabled
-              />
-              <QuickAction
-                title="My quizzes"
-                description="View quizzes you've created"
-                icon={<LayersIcon />}
-                disabled
-              />
-              <QuickAction
-                title="Quiz history"
-                description="Review your past attempts"
-                icon={<ClockIcon />}
-                disabled
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      </section>
     </div>
   );
 }
@@ -291,8 +319,10 @@ function StatCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold tabular-nums">{value}</div>
-        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        <div className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+          {value}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       </CardContent>
     </Card>
   );
@@ -315,15 +345,15 @@ function QuickAction({
     <div
       className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
         disabled
-          ? 'cursor-not-allowed opacity-50'
-          : 'hover:bg-accent hover:text-accent-foreground'
+          ? 'cursor-not-allowed opacity-50 bg-muted/20'
+          : 'hover:bg-accent hover:text-accent-foreground cursor-pointer'
       }`}
     >
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground [&_svg]:size-4">
         {icon}
       </div>
       <div className="flex flex-1 flex-col gap-0.5">
-        <span className="text-sm font-medium">{title}</span>
+        <span className="text-sm font-medium text-foreground">{title}</span>
         <span className="text-xs text-muted-foreground">{description}</span>
       </div>
       {!disabled && <ArrowRightIcon className="size-4 text-muted-foreground" />}

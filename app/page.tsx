@@ -50,12 +50,19 @@ export default async function Home() {
 
               <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
                 {session ? (
-                  <Link href="/dashboard">
-                    <Button size="lg" className="h-11 px-6 shadow-sm">
-                      Go to Dashboard
-                      <ArrowRightIcon data-icon="inline-end" />
-                    </Button>
-                  </Link>
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <Link href="/dashboard">
+                      <Button size="lg" className="h-11 px-6 shadow-sm">
+                        Go to Dashboard
+                        <ArrowRightIcon data-icon="inline-end" />
+                      </Button>
+                    </Link>
+                    <Link href="/quizzes">
+                      <Button variant="outline" size="lg" className="h-11 px-6">
+                        Explore Quizzes
+                      </Button>
+                    </Link>
+                  </div>
                 ) : (
                   <>
                     <Link href="/register">
@@ -64,9 +71,9 @@ export default async function Home() {
                         <ArrowRightIcon data-icon="inline-end" />
                       </Button>
                     </Link>
-                    <Link href="/login">
+                    <Link href="/quizzes">
                       <Button variant="outline" size="lg" className="h-11 px-6">
-                        Sign in to account
+                        Explore Quizzes
                       </Button>
                     </Link>
                   </>

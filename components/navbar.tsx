@@ -2,9 +2,10 @@ import Link from 'next/link';
 import { getSession } from '@/lib/auth-server';
 import { UserMenu } from '@/components/user-menu';
 import { ModeToggle } from '@/components/mode-toggle';
+import { NavLinks } from '@/components/nav-links';
+import { MobileNav } from '@/components/mobile-nav';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { LayoutDashboardIcon } from 'lucide-react';
 
 export async function Navbar() {
   const session = await getSession();
@@ -12,6 +13,9 @@ export async function Navbar() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+        {/* Mobile menu trigger */}
+        <MobileNav isAuthenticated={!!session} />
+
         {/* Brand */}
         <Link href="/" className="flex items-center gap-2">
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -35,23 +39,14 @@ export async function Navbar() {
           </span>
         </Link>
 
-        {/* Navigation links */}
-        {session && (
-          <>
-            <Separator orientation="vertical" className="mx-1 h-5" />
-            <nav className="flex items-center gap-1">
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm">
-                  <LayoutDashboardIcon data-icon="inline-start" />
-                  Dashboard
-                </Button>
-              </Link>
-            </nav>
-          </>
-        )}
+        {/* Desktop Navigation links with active route indicator */}
+        <div className="hidden md:flex items-center gap-2">
+          <Separator orientation="vertical" className="mx-1 h-5" />
+          <NavLinks isAuthenticated={!!session} />
+        </div>
 
-        {/* Right side */}
-        <div className="ml-auto flex items-center gap-3">
+        {/* Right side controls */}
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <ModeToggle />
           {session ? (
             <UserMenu
@@ -68,7 +63,7 @@ export async function Navbar() {
                   Sign in
                 </Button>
               </Link>
-              <Link href="/register">
+              <Link href="/register" className="hidden sm:inline-flex">
                 <Button size="sm">Get started</Button>
               </Link>
             </div>

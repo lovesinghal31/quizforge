@@ -185,6 +185,42 @@ export async function getQuizById(id: string) {
   }
 }
 
+/**
+ * Fetches full quiz details for an author to edit, including questions,
+ * options, and correct answers. Enforces creator ownership.
+ */
+export async function getAuthorQuizById(id: string, userId: string) {
+  try {
+    const quiz = await prisma.quiz.findUnique({
+      where: { id },
+      include: {
+        questions: {
+          orderBy: { position: 'asc' },
+          include: {
+            options: {
+              orderBy: { position: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!quiz) {
+      return null;
+    }
+
+    if (quiz.creatorId !== userId) {
+      return null;
+    }
+
+    return quiz;
+  } catch (error) {
+    console.error('Error fetching author quiz by ID:', error);
+    return null;
+  }
+}
+
+
 export async function getDashboardData(userId: string) {
   try {
     const [

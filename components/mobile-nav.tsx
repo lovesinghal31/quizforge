@@ -54,7 +54,7 @@ export function MobileNav({ isAuthenticated }: MobileNavProps) {
             href: '/dashboard/my-quizzes',
             label: 'My Quizzes',
             icon: BookOpenIcon,
-            active: pathname === '/dashboard/my-quizzes',
+            active: pathname.startsWith('/dashboard/my-quizzes'),
           },
         ]
       : []),

@@ -71,10 +71,12 @@ export default async function DashboardPage() {
                 <span>Explore Quizzes</span>
               </Button>
             </Link>
-            <Button variant="outline" size="lg" className="h-10 px-5 gap-2" disabled>
-              <PlusCircleIcon data-icon="inline-start" />
-              <span>Create a quiz</span>
-            </Button>
+            <Link href="/dashboard/my-quizzes/new">
+              <Button variant="outline" size="lg" className="h-10 px-5 gap-2">
+                <PlusCircleIcon data-icon="inline-start" />
+                <span>Create a quiz</span>
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
@@ -211,9 +213,9 @@ export default async function DashboardPage() {
               />
               <QuickAction
                 title="Create a quiz"
-                description="Build a new assessment (Day 5)"
+                description="Build a new assessment"
                 icon={<PlusCircleIcon />}
-                disabled
+                href="/dashboard/my-quizzes/new"
               />
               <QuickAction
                 title="Quiz history"

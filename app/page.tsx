@@ -1,69 +1,186 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { getSession } from '@/lib/auth-server';
+import { Navbar } from '@/components/navbar';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
+import {
+  SparklesIcon,
+  BrainCircuitIcon,
+  BarChart3Icon,
+  ShieldCheckIcon,
+  ArrowRightIcon,
+  CheckCircle2Icon,
+  LayersIcon,
+} from 'lucide-react';
 
-export default function Home() {
+export const instant = false;
+
+export default async function Home() {
+  const session = await getSession();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="flex min-h-dvh flex-col bg-background text-foreground">
+      <Navbar />
+
+      <main className="flex-1">
+        {/* Hero Section */}
+        <section className="relative overflow-hidden border-b bg-gradient-to-b from-muted/50 via-background to-background py-20 sm:py-28">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-muted/60 px-3.5 py-1 text-xs font-medium text-muted-foreground shadow-xs">
+                <SparklesIcon className="size-3.5 text-primary" />
+                <span>Next-Gen Interactive Assessment Platform</span>
+              </div>
+
+              <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+                Create, Share, and Master Quizzes with{' '}
+                <span className="text-primary">QuizForge</span>
+              </h1>
+
+              <p className="mt-6 text-lg leading-relaxed text-muted-foreground sm:text-xl">
+                The modern full-stack quiz platform designed for students,
+                educators, and developers. Build dynamic quizzes, challenge your
+                knowledge, and track performance with real-time analytics.
+              </p>
+
+              <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+                {session ? (
+                  <Link href="/dashboard">
+                    <Button size="lg" className="h-11 px-6 shadow-sm">
+                      Go to Dashboard
+                      <ArrowRightIcon data-icon="inline-end" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Link href="/register">
+                      <Button size="lg" className="h-11 px-6 shadow-sm">
+                        Get started for free
+                        <ArrowRightIcon data-icon="inline-end" />
+                      </Button>
+                    </Link>
+                    <Link href="/login">
+                      <Button variant="outline" size="lg" className="h-11 px-6">
+                        Sign in to account
+                      </Button>
+                    </Link>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2Icon className="size-4 text-primary" />
+                  <span>Verified session security</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2Icon className="size-4 text-primary" />
+                  <span>Real-time evaluation</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2Icon className="size-4 text-primary" />
+                  <span>User-scoped data isolation</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Feature Highlights */}
+        <section className="py-16 sm:py-24">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-12 text-center">
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Engineered for Performance and Reliability
+              </h2>
+              <p className="mt-2 text-muted-foreground">
+                Everything you need to create engaging assessments and track real learning outcomes.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <Card className="transition-all hover:shadow-md">
+                <CardHeader>
+                  <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <BrainCircuitIcon className="size-5" />
+                  </div>
+                  <CardTitle className="text-lg">Quiz Creation</CardTitle>
+                  <CardDescription>
+                    Custom time limits, multi-format questions, difficulty levels, and categorization.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card className="transition-all hover:shadow-md">
+                <CardHeader>
+                  <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <BarChart3Icon className="size-5" />
+                  </div>
+                  <CardTitle className="text-lg">Detailed Analytics</CardTitle>
+                  <CardDescription>
+                    Track completion rates, average scores, and individual attempt breakdowns over time.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card className="transition-all hover:shadow-md">
+                <CardHeader>
+                  <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <ShieldCheckIcon className="size-5" />
+                  </div>
+                  <CardTitle className="text-lg">Ironclad Security</CardTitle>
+                  <CardDescription>
+                    Better Auth session protection with HttpOnly cookies and database-level user isolation.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card className="transition-all hover:shadow-md">
+                <CardHeader>
+                  <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <LayersIcon className="size-5" />
+                  </div>
+                  <CardTitle className="text-lg">Modern Stack</CardTitle>
+                  <CardDescription>
+                    Built on Next.js 16 App Router, Prisma ORM, PostgreSQL, and shadcn/ui components.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA section */}
+        <section className="border-t bg-muted/40 py-16">
+          <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              Ready to test your knowledge?
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-muted-foreground">
+              Sign up in seconds and start creating quizzes, challenging your friends, and tracking your scores.
+            </p>
+            <div className="mt-8 flex justify-center gap-4">
+              <Link href={session ? '/dashboard' : '/register'}>
+                <Button size="lg" className="h-11 px-8">
+                  {session ? 'Go to Dashboard' : 'Create Free Account'}
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t py-8 text-center text-sm text-muted-foreground">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <p>© 2026 QuizForge. All rights reserved. Built with Next.js, Better Auth &amp; Prisma.</p>
+        </div>
+      </footer>
     </div>
   );
 }

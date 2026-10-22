@@ -154,7 +154,6 @@ export async function getQuizById(id: string) {
           select: {
             id: true,
             text: true,
-            explanation: true,
             position: true,
             _count: {
               select: {
@@ -219,6 +218,296 @@ export async function getAuthorQuizById(id: string, userId: string) {
     return null;
   }
 }
+
+export interface SafeOptionDTO {
+  id: string;
+  text: string;
+  position: number;
+}
+
+export interface SafeQuestionDTO {
+  id: string;
+  text: string;
+  position: number;
+  options: SafeOptionDTO[];
+}
+
+export interface FinalizedAttemptDTO {
+  id: string;
+  status: 'COMPLETED' | 'EXPIRED';
+  score: number;
+  maxScore: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  unansweredQuestions: number;
+  percentage: number;
+  durationSeconds: number;
+  completedAt: string | null;
+}
+
+export interface QuizTakingData {
+  quiz: {
+    id: string;
+    title: string;
+    description: string | null;
+    category: string;
+    difficulty: Difficulty;
+    timeLimitSeconds: number;
+  };
+  attempt?: {
+    id: string;
+    startedAt: string;
+    deadline: string;
+  };
+  questions?: SafeQuestionDTO[];
+  savedAnswers?: Record<string, string>;
+  finalizedAttempt?: FinalizedAttemptDTO;
+}
+
+/**
+ * Loads published quiz for an active student attempt without exposing answer keys,
+ * initializes or resumes an active QuizAttempt, and calculates authoritative deadlines.
+ * If the attempt has already finalized or expired, returns the finalized state instead of creating a duplicate.
+ */
+export async function getQuizForTaking(
+  quizId: string,
+  userId: string
+): Promise<QuizTakingData | null> {
+  try {
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        category: true,
+        difficulty: true,
+        timeLimitSeconds: true,
+        isPublished: true,
+        questions: {
+          select: {
+            id: true,
+            text: true,
+            position: true,
+            options: {
+              select: {
+                id: true,
+                text: true,
+                position: true,
+              },
+              orderBy: { position: 'asc' },
+            },
+          },
+          orderBy: { position: 'asc' },
+        },
+      },
+    });
+
+    if (!quiz || !quiz.isPublished || quiz.questions.length === 0) {
+      return null;
+    }
+
+    const now = new Date();
+
+    // Check for an active in-progress attempt
+    const activeAttempt = await prisma.quizAttempt.findFirst({
+      where: {
+        userId,
+        quizId,
+        status: 'IN_PROGRESS',
+      },
+      include: {
+        answers: {
+          select: {
+            questionId: true,
+            selectedOptionId: true,
+            isCorrect: true,
+          },
+        },
+      },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (activeAttempt) {
+      const deadline = new Date(
+        activeAttempt.startedAt.getTime() + quiz.timeLimitSeconds * 1000
+      );
+
+      // If active attempt deadline has passed, finalize as EXPIRED and score valid answers
+      if (now.getTime() >= deadline.getTime()) {
+        const totalQuestions = quiz.questions.length;
+        const correctAnswers = activeAttempt.answers.filter((a) => a.isCorrect).length;
+        const answeredCount = activeAttempt.answers.filter((a) =>
+          Boolean(a.selectedOptionId)
+        ).length;
+        const unansweredQuestions = totalQuestions - answeredCount;
+        const incorrectAnswers = answeredCount - correctAnswers;
+        const percentage =
+          totalQuestions > 0
+            ? Math.round((correctAnswers / totalQuestions) * 1000) / 10
+            : 0;
+
+        await prisma.quizAttempt.update({
+          where: { id: activeAttempt.id },
+          data: {
+            status: 'EXPIRED',
+            score: correctAnswers,
+            completedAt: deadline,
+            durationSeconds: quiz.timeLimitSeconds,
+          },
+        });
+
+        return {
+          quiz: {
+            id: quiz.id,
+            title: quiz.title,
+            description: quiz.description,
+            category: quiz.category,
+            difficulty: quiz.difficulty,
+            timeLimitSeconds: quiz.timeLimitSeconds,
+          },
+          finalizedAttempt: {
+            id: activeAttempt.id,
+            status: 'EXPIRED',
+            score: correctAnswers,
+            maxScore: totalQuestions,
+            totalQuestions,
+            correctAnswers,
+            incorrectAnswers,
+            unansweredQuestions,
+            percentage,
+            durationSeconds: quiz.timeLimitSeconds,
+            completedAt: deadline.toISOString(),
+          },
+        };
+      }
+
+      // Active attempt is within its authoritative deadline: resume it
+      const savedAnswers: Record<string, string> = {};
+      if (activeAttempt.answers) {
+        for (const ans of activeAttempt.answers) {
+          if (ans.selectedOptionId) {
+            savedAnswers[ans.questionId] = ans.selectedOptionId;
+          }
+        }
+      }
+
+      return {
+        quiz: {
+          id: quiz.id,
+          title: quiz.title,
+          description: quiz.description,
+          category: quiz.category,
+          difficulty: quiz.difficulty,
+          timeLimitSeconds: quiz.timeLimitSeconds,
+        },
+        attempt: {
+          id: activeAttempt.id,
+          startedAt: activeAttempt.startedAt.toISOString(),
+          deadline: deadline.toISOString(),
+        },
+        questions: quiz.questions,
+        savedAnswers,
+      };
+    }
+
+    // No active attempt: check for the most recent completed or expired attempt
+    const recentAttempt = await prisma.quizAttempt.findFirst({
+      where: {
+        userId,
+        quizId,
+        status: { in: ['COMPLETED', 'EXPIRED'] },
+      },
+      include: {
+        answers: {
+          select: {
+            questionId: true,
+            selectedOptionId: true,
+            isCorrect: true,
+          },
+        },
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    if (recentAttempt) {
+      const totalQuestions = recentAttempt.totalQuestions;
+      const correctAnswers = recentAttempt.answers.filter((a) => a.isCorrect).length;
+      const answeredCount = recentAttempt.answers.filter((a) =>
+        Boolean(a.selectedOptionId)
+      ).length;
+      const unansweredQuestions = totalQuestions - answeredCount;
+      const incorrectAnswers = answeredCount - correctAnswers;
+      const percentage =
+        totalQuestions > 0
+          ? Math.round((recentAttempt.score / totalQuestions) * 1000) / 10
+          : 0;
+      const durationSeconds = recentAttempt.durationSeconds ?? quiz.timeLimitSeconds;
+
+      return {
+        quiz: {
+          id: quiz.id,
+          title: quiz.title,
+          description: quiz.description,
+          category: quiz.category,
+          difficulty: quiz.difficulty,
+          timeLimitSeconds: quiz.timeLimitSeconds,
+        },
+        finalizedAttempt: {
+          id: recentAttempt.id,
+          status: recentAttempt.status as 'COMPLETED' | 'EXPIRED',
+          score: recentAttempt.score,
+          maxScore: totalQuestions,
+          totalQuestions,
+          correctAnswers,
+          incorrectAnswers,
+          unansweredQuestions,
+          percentage,
+          durationSeconds,
+          completedAt: recentAttempt.completedAt?.toISOString() || null,
+        },
+      };
+    }
+
+    // If no attempt ever existed for this user/quiz, create an initial attempt
+    const newAttempt = await prisma.quizAttempt.create({
+      data: {
+        userId,
+        quizId,
+        status: 'IN_PROGRESS',
+        totalQuestions: quiz.questions.length,
+        startedAt: now,
+      },
+    });
+
+    const authoritativeDeadline = new Date(
+      newAttempt.startedAt.getTime() + quiz.timeLimitSeconds * 1000
+    );
+
+    return {
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        description: quiz.description,
+        category: quiz.category,
+        difficulty: quiz.difficulty,
+        timeLimitSeconds: quiz.timeLimitSeconds,
+      },
+      attempt: {
+        id: newAttempt.id,
+        startedAt: newAttempt.startedAt.toISOString(),
+        deadline: authoritativeDeadline.toISOString(),
+      },
+      questions: quiz.questions,
+      savedAnswers: {},
+    };
+  } catch (error) {
+    console.error('Error getting quiz for taking:', error);
+    return null;
+  }
+}
+
 
 
 export async function getDashboardData(userId: string) {

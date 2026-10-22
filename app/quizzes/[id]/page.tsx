@@ -2,18 +2,18 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { Navbar } from '@/components/navbar';
+import { getSession } from '@/lib/auth-server';
 import { getQuizById } from '@/lib/quiz-service';
 import { getDifficultyVariant } from '@/components/quiz-card';
+import { StartQuizButton } from '@/components/start-quiz-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   ArrowLeftIcon,
   ClockIcon,
   HelpCircleIcon,
   UserIcon,
-  PlayIcon,
   InfoIcon,
   BookOpenIcon,
   TrophyIcon,
@@ -48,12 +48,16 @@ export async function generateMetadata({
 
 export default async function QuizDetailsPage({ params }: QuizDetailsPageProps) {
   const { id } = await params;
-  const quiz = await getQuizById(id);
+  const [quiz, session] = await Promise.all([
+    getQuizById(id),
+    getSession(),
+  ]);
 
   if (!quiz) {
     notFound();
   }
 
+  const isAuthenticated = Boolean(session?.user);
   const difficultyInfo = getDifficultyVariant(quiz.difficulty);
   const minutes = Math.round(quiz.timeLimitSeconds / 60);
 
@@ -143,26 +147,50 @@ export default async function QuizDetailsPage({ params }: QuizDetailsPageProps) 
 
             {/* Action Area */}
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
-              <Button size="lg" className="h-11 px-8 gap-2" disabled>
-                <PlayIcon data-icon="inline-start" />
-                <span>Start Quiz</span>
-              </Button>
+              <StartQuizButton quizId={quiz.id} isAuthenticated={isAuthenticated} />
               <Link href="/quizzes">
                 <Button variant="outline" size="lg" className="h-11 px-6 w-full sm:w-auto">
                   Browse more quizzes
                 </Button>
               </Link>
             </div>
-
-            {/* Phase note */}
-            <Alert className="mt-6 bg-muted/50 border-muted">
-              <InfoIcon />
-              <AlertTitle>Interactive Quiz Engine</AlertTitle>
-              <AlertDescription className="text-xs">
-                The interactive quiz runner and real-time timer will be activated in the next development phase (Day 4: Taking and Scoring Quizzes).
-              </AlertDescription>
-            </Alert>
           </div>
+
+          {/* Assessment Instructions Card */}
+          <Card className="mb-8 border shadow-xs">
+            <CardHeader className="pb-3 border-b bg-muted/20">
+              <div className="flex items-center gap-2">
+                <InfoIcon className="size-4 text-primary" />
+                <CardTitle className="text-base font-semibold">
+                  Assessment Instructions &amp; Rules
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-3 text-sm text-muted-foreground leading-relaxed">
+              <ul className="list-disc pl-5 space-y-2">
+                <li>
+                  <strong className="text-foreground">Fixed Structure:</strong> This test contains exactly{' '}
+                  <span className="font-semibold text-foreground">{quiz.questions.length} multiple-choice questions</span> with four options each. Exactly one option is correct.
+                </li>
+                <li>
+                  <strong className="text-foreground">Free Navigation:</strong> You can navigate between questions in any order using the <span className="font-semibold text-foreground">Previous</span> and <span className="font-semibold text-foreground">Next</span> buttons, or jump directly via the question navigator.
+                </li>
+                <li>
+                  <strong className="text-foreground">Answer Review:</strong> The interface tracks answered and unanswered questions in real time so you can review your progress before submitting.
+                </li>
+                <li>
+                  <strong className="text-foreground">Strict Countdown Timer:</strong> The timer begins immediately when you click Start Quiz. You have{' '}
+                  <span className="font-semibold text-foreground">{minutes} minutes</span> ({quiz.timeLimitSeconds} seconds) to complete your attempt.
+                </li>
+                <li>
+                  <strong className="text-foreground">Automatic Finalization:</strong> If the timer reaches zero before you click submit, your current answers will be automatically submitted by the system.
+                </li>
+                <li>
+                  <strong className="text-foreground">Final Submission:</strong> Once you submit your assessment, all responses are permanently recorded and cannot be revised.
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
 
           {/* Question Curriculum Outline */}
           <Card>

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboardIcon, CompassIcon, BookOpenIcon } from 'lucide-react';
+import { LayoutDashboardIcon, CompassIcon, BookOpenIcon, BarChart3Icon } from 'lucide-react';
 import { cn } from 'cn';
 
 interface NavLinksProps {
@@ -37,6 +37,12 @@ export function NavLinks({ isAuthenticated }: NavLinksProps) {
             label: 'My Quizzes',
             icon: BookOpenIcon,
             active: pathname.startsWith('/dashboard/my-quizzes'),
+          },
+          {
+            href: '/dashboard/analytics',
+            label: 'Analytics',
+            icon: BarChart3Icon,
+            active: pathname.startsWith('/dashboard/analytics'),
           },
         ]
       : []),

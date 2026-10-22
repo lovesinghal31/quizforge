@@ -218,10 +218,10 @@ export default async function DashboardPage() {
                 href="/dashboard/my-quizzes/new"
               />
               <QuickAction
-                title="Quiz history"
-                description="Review past attempt logs (Day 4)"
-                icon={<ClockIcon />}
-                disabled
+                title="Analytics"
+                description="View quiz results & insights"
+                icon={<BarChart3Icon />}
+                href="/dashboard/analytics"
               />
             </CardContent>
           </Card>

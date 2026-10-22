@@ -608,3 +608,182 @@ export async function getDashboardData(userId: string) {
     };
   }
 }
+
+// ─── Creator Analytics ──────────────────────────────────────────────────────
+
+export interface CreatorQuizStats {
+  quizId: string;
+  quizTitle: string;
+  category: string;
+  difficulty: Difficulty;
+  totalAttempts: number;
+  completedAttempts: number;
+  averageScore: number | null;
+  averagePercentage: number | null;
+  highestScore: number;
+  lowestScore: number;
+  totalQuestions: number;
+}
+
+export interface CreatorAttemptRow {
+  id: string;
+  quizTitle: string;
+  quizCategory: string;
+  studentName: string;
+  studentEmail: string;
+  status: string;
+  score: number;
+  totalQuestions: number;
+  percentage: number;
+  durationSeconds: number | null;
+  startedAt: Date;
+  completedAt: Date | null;
+}
+
+export interface CreatorAnalyticsData {
+  quizStats: CreatorQuizStats[];
+  attempts: CreatorAttemptRow[];
+  overallStats: {
+    totalQuizzes: number;
+    totalAttempts: number;
+    totalCompletedAttempts: number;
+    overallAveragePercentage: number | null;
+  };
+}
+
+/**
+ * Fetches comprehensive analytics data for all quizzes created by the given user.
+ * Returns per-quiz summary statistics and all individual attempt records.
+ */
+export async function getCreatorAnalytics(
+  creatorId: string
+): Promise<CreatorAnalyticsData> {
+  try {
+    const creatorQuizzes = await prisma.quiz.findMany({
+      where: { creatorId },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        difficulty: true,
+        questions: {
+          select: { id: true },
+        },
+        attempts: {
+          select: {
+            id: true,
+            status: true,
+            score: true,
+            totalQuestions: true,
+            durationSeconds: true,
+            startedAt: true,
+            completedAt: true,
+            user: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: { startedAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const quizStats: CreatorQuizStats[] = [];
+    const attempts: CreatorAttemptRow[] = [];
+    let totalAttempts = 0;
+    let totalCompletedAttempts = 0;
+    let percentageSum = 0;
+    let percentageCount = 0;
+
+    for (const quiz of creatorQuizzes) {
+      const quizAttempts = quiz.attempts;
+      const completedAttempts = quizAttempts.filter(
+        (a) => a.status === 'COMPLETED' || a.status === 'EXPIRED'
+      );
+      const scores = completedAttempts.map((a) => a.score);
+
+      const totalQuestions = quiz.questions.length;
+      const avgScore =
+        scores.length > 0
+          ? Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10
+          : null;
+      const avgPercentage =
+        avgScore !== null && totalQuestions > 0
+          ? Math.round((avgScore / totalQuestions) * 1000) / 10
+          : null;
+
+      quizStats.push({
+        quizId: quiz.id,
+        quizTitle: quiz.title,
+        category: quiz.category,
+        difficulty: quiz.difficulty,
+        totalAttempts: quizAttempts.length,
+        completedAttempts: completedAttempts.length,
+        averageScore: avgScore,
+        averagePercentage: avgPercentage,
+        highestScore: scores.length > 0 ? Math.max(...scores) : 0,
+        lowestScore: scores.length > 0 ? Math.min(...scores) : 0,
+        totalQuestions,
+      });
+
+      totalAttempts += quizAttempts.length;
+      totalCompletedAttempts += completedAttempts.length;
+
+      for (const attempt of quizAttempts) {
+        const pct =
+          attempt.totalQuestions > 0
+            ? Math.round((attempt.score / attempt.totalQuestions) * 1000) / 10
+            : 0;
+
+        if (attempt.status === 'COMPLETED' || attempt.status === 'EXPIRED') {
+          percentageSum += pct;
+          percentageCount++;
+        }
+
+        attempts.push({
+          id: attempt.id,
+          quizTitle: quiz.title,
+          quizCategory: quiz.category,
+          studentName: attempt.user.name,
+          studentEmail: attempt.user.email,
+          status: attempt.status,
+          score: attempt.score,
+          totalQuestions: attempt.totalQuestions,
+          percentage: pct,
+          durationSeconds: attempt.durationSeconds,
+          startedAt: attempt.startedAt,
+          completedAt: attempt.completedAt,
+        });
+      }
+    }
+
+    return {
+      quizStats,
+      attempts,
+      overallStats: {
+        totalQuizzes: creatorQuizzes.length,
+        totalAttempts,
+        totalCompletedAttempts,
+        overallAveragePercentage:
+          percentageCount > 0
+            ? Math.round((percentageSum / percentageCount) * 10) / 10
+            : null,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching creator analytics:', error);
+    return {
+      quizStats: [],
+      attempts: [],
+      overallStats: {
+        totalQuizzes: 0,
+        totalAttempts: 0,
+        totalCompletedAttempts: 0,
+        overallAveragePercentage: null,
+      },
+    };
+  }
+}

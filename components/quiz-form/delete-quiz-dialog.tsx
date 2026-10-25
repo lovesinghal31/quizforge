@@ -13,7 +13,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { deleteQuizAction } from '@/app/actions/quiz-actions';
 import { toast } from '@/components/ui/toast';
 import { Loader2Icon, Trash2Icon } from 'lucide-react';
 
@@ -49,11 +48,15 @@ export function DeleteQuizDialog({
     setIsDeleting(true);
 
     try {
-      const res = await deleteQuizAction(quizId);
-      if (res.error) {
+      const res = await fetch(`/api/quizzes/${quizId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
         toast.add({
           title: 'Error deleting quiz',
-          description: res.error,
+          description: data.error || 'Failed to delete quiz.',
           type: 'error',
         });
       } else {

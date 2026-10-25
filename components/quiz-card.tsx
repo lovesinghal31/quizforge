@@ -16,8 +16,24 @@ import {
   ArrowRightIcon,
   BookOpenIcon,
 } from 'lucide-react';
-import type { QuizSummary } from '@/lib/quiz-service';
 import type { Difficulty } from '@/generated/prisma/client';
+
+export interface QuizSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  difficulty: Difficulty;
+  timeLimitSeconds: number;
+  createdAt?: string | Date;
+  creator: {
+    name: string;
+  };
+  _count: {
+    questions: number;
+    attempts?: number;
+  };
+}
 
 interface QuizCardProps {
   quiz: QuizSummary;

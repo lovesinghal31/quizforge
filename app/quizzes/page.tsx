@@ -1,43 +1,54 @@
-import { Suspense } from 'react';
-import type { Metadata } from 'next';
+'use client';
+
+import { Suspense, useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
-import { QuizCard } from '@/components/quiz-card';
+import { QuizCard, type QuizSummary } from '@/components/quiz-card';
 import { QuizFilters } from '@/components/quiz-filters';
 import { QuizEmptyState } from '@/components/quiz-empty-state';
-import { getPublishedQuizzes } from '@/lib/quiz-service';
-import { CompassIcon, SparklesIcon } from 'lucide-react';
+import { CompassIcon, SparklesIcon, Loader2Icon } from 'lucide-react';
 
-export const metadata: Metadata = {
-  title: 'Explore Quizzes — QuizForge',
-  description:
-    'Discover and take published engineering, web development, and computer science quizzes on QuizForge.',
-};
+function QuizzesContent() {
+  const searchParams = useSearchParams();
+  const q = searchParams.get('q') || '';
+  const category = searchParams.get('category') || 'all';
+  const difficulty = searchParams.get('difficulty') || 'all';
 
-export const instant = false;
+  const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-interface QuizzesPageProps {
-  searchParams: Promise<{
-    q?: string;
-    category?: string;
-    difficulty?: string;
-    page?: string;
-  }>;
-}
+  const loadQuizzes = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const query = new URLSearchParams();
+      if (q) query.set('q', q);
+      if (category && category !== 'all') query.set('category', category);
+      if (difficulty && difficulty !== 'all') query.set('difficulty', difficulty);
 
-export default async function QuizzesPage({ searchParams }: QuizzesPageProps) {
-  const params = await searchParams;
-  const q = params.q || '';
-  const category = params.category || 'all';
-  const difficulty = params.difficulty || 'all';
-  const currentPage = params.page ? parseInt(params.page, 10) : 1;
+      const res = await fetch(`/api/quizzes?${query.toString()}`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch quizzes.');
+      }
 
-  const { quizzes, totalCount, categories } = await getPublishedQuizzes({
-    q,
-    category,
-    difficulty,
-    page: currentPage,
-    pageSize: 12,
-  });
+      const data = await res.json();
+      setQuizzes(data.quizzes || []);
+      setTotalCount(data.totalCount || 0);
+      if (data.categories) {
+        setCategories(data.categories);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error fetching quizzes.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [q, category, difficulty]);
+
+  useEffect(() => {
+    loadQuizzes();
+  }, [loadQuizzes]);
 
   const hasActiveFilters = Boolean(
     q ||
@@ -46,58 +57,78 @@ export default async function QuizzesPage({ searchParams }: QuizzesPageProps) {
   );
 
   return (
+    <main className="flex-1 py-10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Header section */}
+        <div className="mb-8">
+          <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted/60 px-3 py-0.5 text-xs font-medium text-muted-foreground">
+            <SparklesIcon className="size-3 text-primary" />
+            <span>Quiz Discovery</span>
+          </div>
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl flex items-center gap-2.5">
+                <CompassIcon className="size-8 text-primary" />
+                Explore Quizzes
+              </h1>
+              <p className="mt-2 text-base text-muted-foreground max-w-2xl">
+                Challenge yourself with curated assessments across Programming, Web
+                Development, Databases, Networks, and Computer Science.
+              </p>
+            </div>
+            <div className="text-sm font-medium text-muted-foreground shrink-0">
+              {totalCount} {totalCount === 1 ? 'quiz' : 'quizzes'} available
+            </div>
+          </div>
+        </div>
+
+        {/* Search & Filter Bar */}
+        <div className="mb-8">
+          <QuizFilters
+            categories={categories}
+            initialSearch={q}
+            initialCategory={category}
+            initialDifficulty={difficulty}
+          />
+        </div>
+
+        {/* Content list or states */}
+        {isLoading ? (
+          <div className="flex min-h-[300px] flex-col items-center justify-center">
+            <Loader2Icon className="size-8 animate-spin text-primary mb-3" />
+            <p className="text-sm text-muted-foreground">Fetching quizzes from /api/quizzes...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-destructive font-medium mb-3">{error}</p>
+          </div>
+        ) : quizzes.length > 0 ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {quizzes.map((quiz) => (
+              <QuizCard key={quiz.id} quiz={quiz} />
+            ))}
+          </div>
+        ) : (
+          <QuizEmptyState hasFilters={hasActiveFilters} />
+        )}
+      </div>
+    </main>
+  );
+}
+
+export default function QuizzesPage() {
+  return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <Navbar />
-
-      <main className="flex-1 py-10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          {/* Header section */}
-          <div className="mb-8">
-            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border bg-muted/60 px-3 py-0.5 text-xs font-medium text-muted-foreground">
-              <SparklesIcon className="size-3 text-primary" />
-              <span>Quiz Discovery</span>
-            </div>
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl flex items-center gap-2.5">
-                  <CompassIcon className="size-8 text-primary" />
-                  Explore Quizzes
-                </h1>
-                <p className="mt-2 text-base text-muted-foreground max-w-2xl">
-                  Challenge yourself with curated assessments across Programming, Web
-                  Development, Databases, Networks, and Computer Science.
-                </p>
-              </div>
-              <div className="text-sm font-medium text-muted-foreground shrink-0">
-                {totalCount} {totalCount === 1 ? 'quiz' : 'quizzes'} available
-              </div>
-            </div>
+      <Suspense
+        fallback={
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2Icon className="size-8 animate-spin text-primary" />
           </div>
-
-          {/* Search & Filter Bar */}
-          <div className="mb-8">
-            <Suspense fallback={<div className="h-16 w-full rounded-2xl bg-muted animate-pulse" />}>
-              <QuizFilters
-                categories={categories}
-                initialSearch={q}
-                initialCategory={category}
-                initialDifficulty={difficulty}
-              />
-            </Suspense>
-          </div>
-
-          {/* Quiz Cards Grid */}
-          {quizzes.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {quizzes.map((quiz) => (
-                <QuizCard key={quiz.id} quiz={quiz} />
-              ))}
-            </div>
-          ) : (
-            <QuizEmptyState hasFilters={hasActiveFilters} />
-          )}
-        </div>
-      </main>
+        }
+      >
+        <QuizzesContent />
+      </Suspense>
 
       {/* Footer */}
       <footer className="border-t py-8 text-center text-sm text-muted-foreground">

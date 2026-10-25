@@ -1,5 +1,7 @@
+'use client';
+
 import Link from 'next/link';
-import { getSession } from '@/lib/auth-server';
+import { authClient } from '@/lib/auth-client';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,10 +20,8 @@ import {
   LayersIcon,
 } from 'lucide-react';
 
-export const instant = false;
-
-export default async function Home() {
-  const session = await getSession();
+export default function Home() {
+  const { data: session } = authClient.useSession();
 
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
@@ -49,7 +49,7 @@ export default async function Home() {
               </p>
 
               <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-                {session ? (
+                {session?.user ? (
                   <div className="flex flex-wrap items-center justify-center gap-3">
                     <Link href="/dashboard">
                       <Button size="lg" className="h-11 px-6 shadow-sm">
@@ -83,15 +83,15 @@ export default async function Home() {
               <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2Icon className="size-4 text-primary" />
-                  <span>Verified session security</span>
+                  <span>REST API architecture</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2Icon className="size-4 text-primary" />
-                  <span>Real-time evaluation</span>
+                  <span>Server-side authoritative evaluation</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2Icon className="size-4 text-primary" />
-                  <span>User-scoped data isolation</span>
+                  <span>HttpOnly session cookies</span>
                 </div>
               </div>
             </div>
@@ -118,7 +118,7 @@ export default async function Home() {
                   </div>
                   <CardTitle className="text-lg">Quiz Creation</CardTitle>
                   <CardDescription>
-                    Custom time limits, multi-format questions, difficulty levels, and categorization.
+                    Custom time limits, multi-format questions, difficulty levels, and categorization via POST /api/quizzes.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -128,9 +128,9 @@ export default async function Home() {
                   <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <BarChart3Icon className="size-5" />
                   </div>
-                  <CardTitle className="text-lg">Detailed Analytics</CardTitle>
+                  <CardTitle className="text-lg">REST API</CardTitle>
                   <CardDescription>
-                    Track completion rates, average scores, and individual attempt breakdowns over time.
+                    Clean HTTP endpoints for quizzes, submissions, scoring, and dashboard metrics.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -172,9 +172,9 @@ export default async function Home() {
               Sign up in seconds and start creating quizzes, challenging your friends, and tracking your scores.
             </p>
             <div className="mt-8 flex justify-center gap-4">
-              <Link href={session ? '/dashboard' : '/register'}>
+              <Link href={session?.user ? '/dashboard' : '/register'}>
                 <Button size="lg" className="h-11 px-8">
-                  {session ? 'Go to Dashboard' : 'Create Free Account'}
+                  {session?.user ? 'Go to Dashboard' : 'Create Free Account'}
                 </Button>
               </Link>
             </div>

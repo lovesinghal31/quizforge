@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { getSession } from '@/lib/auth-server';
-import { getDashboardData } from '@/lib/quiz-service';
-import { getDifficultyVariant } from '@/components/quiz-card';
+'use client';
 
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { authClient } from '@/lib/auth-client';
+import { getDifficultyVariant } from '@/components/quiz-card';
 import {
   Card,
   CardHeader,
@@ -18,35 +18,92 @@ import {
   CompassIcon,
   BookOpenIcon,
   LayersIcon,
-  BarChart3Icon,
   TrophyIcon,
   GlobeIcon,
   ClockIcon,
   ArrowRightIcon,
   HelpCircleIcon,
   SparklesIcon,
+  Loader2Icon,
 } from 'lucide-react';
 
-export const metadata = {
-  title: 'Dashboard — QuizForge',
-  description:
-    'Your QuizForge dashboard. Explore quizzes, track performance, and test your knowledge.',
-};
+interface DashboardData {
+  stats: {
+    totalPublishedQuizzes: number;
+    quizzesCreated: number;
+    attemptsCompleted: number;
+  };
+  recentlyPublished: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    category: string;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    timeLimitSeconds: number;
+    createdAt: string;
+    creator: { name: string };
+    _count: { questions: number };
+  }>;
+  recentAttempts: Array<{
+    id: string;
+    status: string;
+    score: number;
+    totalQuestions: number;
+    completedAt: string | null;
+    quiz: { title: string };
+  }>;
+}
 
-export const instant = false;
+export default function DashboardPage() {
+  const { data: session } = authClient.useSession();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-export default async function DashboardPage() {
-  const session = await getSession();
-  if (!session) {
-    redirect('/login');
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        setIsLoading(true);
+        const res = await fetch('/api/dashboard');
+        if (!res.ok) {
+          throw new Error('Failed to load dashboard metrics');
+        }
+        const json = await res.json();
+        setData(json);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        setError(message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadDashboard();
+  }, []);
+
+  const firstName = session?.user?.name ? session.user.name.split(' ')[0] : 'Learner';
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-center px-4 py-24 sm:px-6 lg:px-8">
+        <Loader2Icon className="size-8 animate-spin text-primary mb-3" />
+        <p className="text-sm text-muted-foreground">Loading your dashboard metrics...</p>
+      </div>
+    );
   }
 
-  const { user } = session;
-  const { stats, recentlyPublished, recentAttempts } = await getDashboardData(
-    user.id
-  );
+  if (error || !data) {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8 text-center">
+        <p className="text-destructive font-medium mb-2">{error || 'Unable to display dashboard'}</p>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
-  const firstName = user.name.split(' ')[0];
+  const { stats, recentlyPublished, recentAttempts } = data;
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -85,9 +142,9 @@ export default async function DashboardPage() {
       <section className="mb-10">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight">Overview &amp; Metrics</h2>
-          <span className="text-xs text-muted-foreground">Updated in real time</span>
+          <span className="text-xs text-muted-foreground">Fetched via /api/dashboard</span>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <StatCard
             title="Available Quizzes"
             value={stats.totalPublishedQuizzes}
@@ -104,17 +161,7 @@ export default async function DashboardPage() {
             title="Attempts Completed"
             value={stats.attemptsCompleted}
             icon={<TrophyIcon className="text-primary" />}
-            description="Tests you've finished"
-          />
-          <StatCard
-            title="Average Score"
-            value={stats.averageScore !== null ? `${stats.averageScore}%` : '—'}
-            icon={<BarChart3Icon className="text-primary" />}
-            description={
-              stats.averageScore !== null
-                ? 'Across completed attempts'
-                : 'Take a quiz to calculate'
-            }
+            description="Tests you've completed"
           />
         </div>
       </section>
@@ -217,12 +264,6 @@ export default async function DashboardPage() {
                 icon={<PlusCircleIcon />}
                 href="/dashboard/my-quizzes/new"
               />
-              <QuickAction
-                title="Analytics"
-                description="View quiz results & insights"
-                icon={<BarChart3Icon />}
-                href="/dashboard/analytics"
-              />
             </CardContent>
           </Card>
         </div>
@@ -251,7 +292,7 @@ export default async function DashboardPage() {
                       </span>
                       <span className="text-xs text-muted-foreground">
                         <ClockIcon className="mr-1 inline-block size-3" />
-                        {new Date(attempt.startedAt).toLocaleDateString(
+                        {new Date(attempt.completedAt || Date.now()).toLocaleDateString(
                           undefined,
                           {
                             month: 'short',
@@ -335,21 +376,16 @@ function QuickAction({
   description,
   icon,
   href,
-  disabled = false,
 }: {
   title: string;
   description: string;
   icon: React.ReactNode;
-  href?: string;
-  disabled?: boolean;
+  href: string;
 }) {
-  const content = (
-    <div
-      className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
-        disabled
-          ? 'cursor-not-allowed opacity-50 bg-muted/20'
-          : 'hover:bg-accent hover:text-accent-foreground cursor-pointer'
-      }`}
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
     >
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground [&_svg]:size-4">
         {icon}
@@ -358,13 +394,7 @@ function QuickAction({
         <span className="text-sm font-medium text-foreground">{title}</span>
         <span className="text-xs text-muted-foreground">{description}</span>
       </div>
-      {!disabled && <ArrowRightIcon className="size-4 text-muted-foreground" />}
-    </div>
+      <ArrowRightIcon className="size-4 text-muted-foreground" />
+    </Link>
   );
-
-  if (disabled || !href) {
-    return content;
-  }
-
-  return <Link href={href}>{content}</Link>;
 }

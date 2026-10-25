@@ -23,7 +23,11 @@ export const metadata: Metadata = {
     'QuizForge is a full-stack quiz platform for creating, sharing, and taking quizzes. Track your progress and improve your knowledge.',
 };
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"

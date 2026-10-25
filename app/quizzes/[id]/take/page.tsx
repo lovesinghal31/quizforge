@@ -1,77 +1,122 @@
-import { notFound, redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth-server';
-import { getQuizForTaking } from '@/lib/quiz-service';
-import { QuizRunner } from '@/components/quiz-runner/quiz-runner';
-import { QuizSubmittedView } from '@/components/quiz-runner/quiz-submitted-view';
+'use client';
+
+import { Suspense, useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { authClient } from '@/lib/auth-client';
+import { QuizRunner, type QuestionData } from '@/components/quiz-runner/quiz-runner';
 import { Navbar } from '@/components/navbar';
+import { Button } from '@/components/ui/button';
+import { Loader2Icon, ArrowLeftIcon } from 'lucide-react';
+import Link from 'next/link';
 
-export const metadata = {
-  title: 'Quiz in Progress — QuizForge',
-  description: 'Active timed assessment on QuizForge.',
-};
-
-export const instant = false;
-
-interface QuizTakePageProps {
-  params: Promise<{
-    id: string;
-  }>;
+interface QuizTakeData {
+  id: string;
+  title: string;
+  category: string;
+  difficulty: string;
+  timeLimitSeconds: number;
+  questions: QuestionData[];
 }
 
-export default async function QuizTakePage({ params }: QuizTakePageProps) {
-  const session = await getSession();
-  const { id } = await params;
+function QuizTakeContent() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params?.id as string;
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
 
-  if (!session?.user) {
-    redirect(`/login?callbackUrl=/quizzes/${id}`);
-  }
+  const [quiz, setQuiz] = useState<QuizTakeData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const takingData = await getQuizForTaking(id, session.user.id);
+  useEffect(() => {
+    if (isSessionPending) return;
 
-  if (!takingData) {
-    notFound();
-  }
+    if (!session?.user) {
+      router.push(`/login?callbackUrl=/quizzes/${id}/take`);
+      return;
+    }
 
-  // If the user's attempt has already been submitted or expired, show the finalized screen
-  if (takingData.finalizedAttempt) {
+    if (!id) return;
+
+    async function loadQuizForTaking() {
+      try {
+        setIsLoading(true);
+        const res = await fetch(`/api/quizzes/${id}`);
+        if (res.status === 404) {
+          setError('Quiz not found or not published.');
+          return;
+        }
+        if (!res.ok) {
+          throw new Error('Failed to load quiz assessment.');
+        }
+
+        const data = await res.json();
+        if (!data.quiz || data.quiz.questions.length === 0) {
+          setError('This quiz has no questions available.');
+          return;
+        }
+
+        setQuiz(data.quiz);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Error loading quiz.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadQuizForTaking();
+  }, [id, session, isSessionPending, router]);
+
+  if (isSessionPending || isLoading) {
     return (
-      <div className="flex min-h-dvh flex-col bg-background text-foreground">
-        <Navbar />
-        <main className="flex-1 py-4 sm:py-8">
-          <QuizSubmittedView
-            quizTitle={takingData.quiz.title}
-            quizId={takingData.quiz.id}
-            status={takingData.finalizedAttempt.status}
-            score={takingData.finalizedAttempt.score}
-            maxScore={takingData.finalizedAttempt.maxScore}
-            totalQuestions={takingData.finalizedAttempt.totalQuestions}
-            correctAnswers={takingData.finalizedAttempt.correctAnswers}
-            incorrectAnswers={takingData.finalizedAttempt.incorrectAnswers}
-            unansweredQuestions={takingData.finalizedAttempt.unansweredQuestions}
-            percentage={takingData.finalizedAttempt.percentage}
-            durationSeconds={takingData.finalizedAttempt.durationSeconds}
-            completedAt={takingData.finalizedAttempt.completedAt}
-          />
-        </main>
-      </div>
+      <main className="flex flex-1 items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2Icon className="size-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Preparing your assessment...</p>
+        </div>
+      </main>
     );
   }
 
-  if (!takingData.attempt || !takingData.questions) {
-    notFound();
+  if (error || !quiz) {
+    return (
+      <main className="flex flex-1 items-center justify-center p-6 text-center py-20">
+        <div>
+          <h1 className="text-2xl font-bold mb-2">Unable to Start Quiz</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            {error || 'The quiz could not be loaded.'}
+          </p>
+          <Link href="/quizzes">
+            <Button variant="outline" className="gap-2">
+              <ArrowLeftIcon className="size-4" />
+              <span>Back to quizzes</span>
+            </Button>
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   return (
+    <main className="flex-1 py-4 sm:py-8">
+      <QuizRunner quiz={quiz} questions={quiz.questions} />
+    </main>
+  );
+}
+
+export default function QuizTakePage() {
+  return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <Navbar />
-      <main className="flex-1 py-4 sm:py-8">
-        <QuizRunner
-          quiz={takingData.quiz}
-          attempt={takingData.attempt}
-          questions={takingData.questions}
-          initialAnswers={takingData.savedAnswers}
-        />
-      </main>
+      <Suspense
+        fallback={
+          <div className="flex flex-1 items-center justify-center py-20">
+            <Loader2Icon className="size-8 animate-spin text-primary" />
+          </div>
+        }
+      >
+        <QuizTakeContent />
+      </Suspense>
     </div>
   );
 }

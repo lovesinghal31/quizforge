@@ -5,57 +5,55 @@ import { ClockIcon, AlertTriangleIcon } from 'lucide-react';
 import { cn } from 'cn';
 
 interface QuizTimerProps {
-  deadline: string; // ISO string
+  seconds?: number;
+  deadline?: string;
   onTimeUp: () => void;
   className?: string;
 }
 
-export function QuizTimer({ deadline, onTimeUp, className }: QuizTimerProps) {
-  const deadlineMs = React.useMemo(() => new Date(deadline).getTime(), [deadline]);
-  const [timeLeftMs, setTimeLeftMs] = React.useState<number>(() =>
-    Math.max(0, deadlineMs - Date.now())
-  );
-  const timeUpFired = React.useRef(false);
+export function QuizTimer({ seconds = 600, deadline, onTimeUp, className }: QuizTimerProps) {
+  const [timeLeft, setTimeLeft] = React.useState<number>(() => {
+    if (deadline) {
+      return Math.max(0, Math.floor((new Date(deadline).getTime() - Date.now()) / 1000));
+    }
+    return seconds;
+  });
+
+  const timeUpRef = React.useRef(false);
 
   React.useEffect(() => {
-    const currentRemaining = Math.max(0, deadlineMs - Date.now());
-    if (currentRemaining <= 0 && !timeUpFired.current) {
-      timeUpFired.current = true;
+    if (timeLeft <= 0 && !timeUpRef.current) {
+      timeUpRef.current = true;
       onTimeUp();
       return;
     }
 
     const timer = setInterval(() => {
-      const remaining = Math.max(0, deadlineMs - Date.now());
-      setTimeLeftMs(remaining);
-
-      if (remaining <= 0 && !timeUpFired.current) {
-        timeUpFired.current = true;
-        clearInterval(timer);
-        onTimeUp();
-      }
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          if (!timeUpRef.current) {
+            timeUpRef.current = true;
+            onTimeUp();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [deadlineMs, onTimeUp]);
+  }, [onTimeUp, timeLeft]);
 
-  // Format as HH:MM:SS or MM:SS
-  const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
     const pad = (n: number) => n.toString().padStart(2, '0');
-
-    if (hours > 0) {
-      return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-    }
-    return `${pad(minutes)}:${pad(seconds)}`;
+    return `${pad(m)}:${pad(s)}`;
   };
 
-  const isLowTime = timeLeftMs <= 120_000 && timeLeftMs > 0; // <= 2 minutes
-  const isUrgent = timeLeftMs <= 30_000 && timeLeftMs > 0; // <= 30 seconds
+  const isLowTime = timeLeft <= 120 && timeLeft > 0;
+  const isUrgent = timeLeft <= 30 && timeLeft > 0;
 
   return (
     <div
@@ -69,15 +67,14 @@ export function QuizTimer({ deadline, onTimeUp, className }: QuizTimerProps) {
         className
       )}
       role="timer"
-      aria-live="polite"
-      aria-label={`Time remaining: ${formatTime(timeLeftMs)}`}
+      aria-label={`Time remaining: ${formatTime(timeLeft)}`}
     >
       {isLowTime ? (
-        <AlertTriangleIcon className="size-3.5 shrink-0 animate-bounce" />
+        <AlertTriangleIcon className="size-3.5 shrink-0 text-amber-500" />
       ) : (
         <ClockIcon className="size-3.5 shrink-0 text-primary" />
       )}
-      <span>{formatTime(timeLeftMs)}</span>
+      <span>{formatTime(timeLeft)}</span>
       {isLowTime && (
         <span className="hidden sm:inline font-sans text-[10px] uppercase font-bold tracking-wider">
           {isUrgent ? 'Hurry!' : 'Ending soon'}
